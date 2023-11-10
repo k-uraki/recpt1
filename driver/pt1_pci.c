@@ -300,6 +300,28 @@ static	int		pt1_thread(void *data)
 				if((micro.packet.head & 0x02) &&  (channel->packet_size != 0)){
 					channel->packet_size = 0 ;
 				}
+#if 0
+// channel->packet_buf への書込オーバーフローすることがある？
+// pt1_drv 死んだときは高確率で dmesg にこのログ出ている
+// [33048.536700] ================================================================================
+// [33048.536712] UBSAN: array-index-out-of-bounds in /var/lib/dkms/pt1_drv/d56831676696/build/pt1_pci.c:306:24
+// [33048.536722] index 188 is out of range for type '__u8 [188]'
+// [33048.536730] CPU: 1 PID: 14232 Comm: pt1 Tainted: G           OE      6.2.0-36-generic #37~22.04.1-Ubuntu
+// [33048.536741] Hardware name: System manufacturer System Product Name/ROG STRIX B360-I GAMING, BIOS 2811 05/27/2020
+// [33048.536746] Call Trace:
+// [33048.536751]  <TASK>
+// [33048.536757]  dump_stack_lvl+0x48/0x70
+// [33048.536777]  dump_stack+0x10/0x20
+// [33048.536787]  __ubsan_handle_out_of_bounds+0xa2/0x100
+// [33048.536801]  pt1_thread+0x5cd/0x700 [pt1_drv]
+// [33048.536824]  ? __schedule+0x2bf/0x5f0
+// [33048.536841]  ? __pfx_pt1_thread+0x10/0x10 [pt1_drv]
+// [33048.536862]  kthread+0xeb/0x120
+// [33048.536875]  ? __pfx_kthread+0x10/0x10
+// [33048.536889]  ret_from_fork+0x29/0x50
+// [33048.536905]  </TASK>
+// [33048.536908] ================================================================================
+
 				// データコピー
 				channel->packet_buf[channel->packet_size]   = micro.packet.data[2];
 				channel->packet_buf[channel->packet_size+1] = micro.packet.data[1];
@@ -327,6 +349,35 @@ static	int		pt1_thread(void *data)
 					channel->size += PACKET_SIZE ;
 					channel->packet_size = 0 ;
 				}
+#else
+				// データコピー
+				for(int packet_data_idx=0;packet_data_idx<sizeof(micro.packet.data);++packet_data_idx) {
+					channel->packet_buf[channel->packet_size]   = micro.packet.data[2-packet_data_idx];
+					channel->packet_size++;
+
+					// パケットが出来たらコピーする
+					if(channel->packet_size >= PACKET_SIZE){
+						if (channel->pointer + channel->size >= channel->maxsize) {
+							// リングバッファの境界を越えていてリングバッファの先頭に戻っている場合
+							// channel->pointer + channel->size - channel->maxsize でリングバッファ先頭からのアドレスになる
+							memcpy(&channel->buf[channel->pointer + channel->size - channel->maxsize], channel->packet_buf, PACKET_SIZE);
+						} else if (channel->pointer + channel->size + PACKET_SIZE > channel->maxsize) {
+							// リングバッファの境界をまたぐように書き込まれる場合
+							// リングバッファの境界まで書き込み
+							__u32 tmp_size = channel->maxsize - (channel->pointer + channel->size);
+							memcpy(&channel->buf[channel->pointer + channel->size], channel->packet_buf, tmp_size);
+							// 先頭に戻って書き込み
+							memcpy(channel->buf, &channel->packet_buf[tmp_size], PACKET_SIZE - tmp_size);
+						} else {
+							// リングバッファ内で収まる場合
+							// 通常の書き込み
+							memcpy(&channel->buf[channel->pointer + channel->size], channel->packet_buf, PACKET_SIZE);
+						}
+						channel->size += PACKET_SIZE ;
+						channel->packet_size = 0 ;
+					}
+				}
+#endif
 				mutex_unlock(&channel->lock);
 			}
 			curdataptr[(DMA_SIZE / sizeof(__u32)) - 2] = 0;
