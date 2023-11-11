@@ -218,6 +218,7 @@ static	int		pt1_thread(void *data)
 	int		ring_pos = 0;
 	int		data_pos = 0 ;
 	int		lp ;
+	int		packet_lp;
 	int		chno ;
 	int		dma_channel ;
 	int		packet_pos ;
@@ -352,8 +353,8 @@ static	int		pt1_thread(void *data)
 #elif 0
 				// 来たデータ分細かく渡すパターン
 				// データコピー
-				for(int packet_data_idx=0;packet_data_idx<sizeof(micro.packet.data);++packet_data_idx) {
-					channel->packet_buf[channel->packet_size]   = micro.packet.data[2-packet_data_idx];
+				for(packet_lp=0;packet_lp<sizeof(micro.packet.data);++packet_lp) {
+					channel->packet_buf[channel->packet_size]   = micro.packet.data[2-packet_lp];
 					channel->packet_size++;
 
 					// パケットが出来たらコピーする
@@ -381,9 +382,9 @@ static	int		pt1_thread(void *data)
 #else
 				// バッファオーバーフローだけ避けるパターン
 				// データコピー
-				for(int packet_data_idx=0;packet_data_idx<sizeof(micro.packet.data);++packet_data_idx) {
+				for(packet_lp=0;packet_lp<sizeof(micro.packet.data);++packet_lp) {
 					if(channel->packet_size < PACKET_SIZE) {
-						channel->packet_buf[channel->packet_size] = micro.packet.data[2-packet_data_idx];
+						channel->packet_buf[channel->packet_size] = micro.packet.data[2-packet_lp];
 					}
 					channel->packet_size++;
 				}
