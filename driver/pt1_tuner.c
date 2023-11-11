@@ -279,6 +279,7 @@ int		bs_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel)
 		wk.addr = addr;
 
 		val = i2c_read(regs, lock, &wk, 1);
+		printk(KERN_INFO "TMCC read %3d %x\n", lp, val);
 		if(((val & 0XFF) != 0XFF) && (!(val & 0x10))){
 			tmcclock = TRUE ;
 			break ;
@@ -311,10 +312,12 @@ int		ts_lock(void __iomem *regs, struct mutex *lock, int addr, __u16 ts_id)
 	wk.value[2]  = uts_id.ts[0];
 	i2c_write(regs, lock, &wk);
 
+	printk(KERN_INFO "ts_lock ts_id=%x", ts_id & 0xFFFF);
 	for(lp = 0 ; lp < 100 ; lp++){
 		memcpy(&wk, &bs_get_ts_lock, sizeof(WBLOCK));
 		wk.addr = addr;
 		val = i2c_read(regs, lock, &wk, 2);
+		printk(KERN_INFO "ts_lock %3d read=%x", lp, val & 0xFFFF);
 		if((val & 0xFFFF) == ts_id){
 			return 0 ;
 		}
@@ -328,7 +331,7 @@ int		bs_tune(void __iomem *regs, struct mutex *lock, int addr, int channel, ISDB
 	int		lp ;
 	int		lp2;
 	WBLOCK	wk;
-	__u32	val ;
+	int		val ;
 	ISDB_S_TS_ID	*tsid ;
 	union{
 		__u8	slot[4];
@@ -344,7 +347,7 @@ int		bs_tune(void __iomem *regs, struct mutex *lock, int addr, int channel, ISDB
 		return -EIO ;
 	}
 	val = bs_frequency(regs, lock, addr, channel);
-	if(val == -EIO){
+	if(val < 0){
 		return val ;
 	}
 
@@ -377,7 +380,10 @@ int		bs_tune(void __iomem *regs, struct mutex *lock, int addr, int channel, ISDB
 		if(tsid->ts_id == 0xFFFF){
 			continue ;
 		}
-		ts_lock(regs, lock, addr, tsid->ts_id);
+		val = ts_lock(regs, lock, addr, tsid->ts_id);
+		if(val < 0) {
+			return val;
+		}
 
 		//スロット取得
 		memcpy(&wk, &bs_get_slot, sizeof(WBLOCK));

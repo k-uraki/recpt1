@@ -595,10 +595,12 @@ static	int		SetFreq(PT1_CHANNEL *channel, FREQUENCY *freq)
 					}
 				}
 #endif
-				ts_lock(channel->ptr->regs,
+				if(ts_lock(channel->ptr->regs,
 						&channel->ptr->lock,
 						channel->address,
-						tmcc.ts_id[freq->slot].ts_id);
+						tmcc.ts_id[freq->slot].ts_id) < 0) {
+					return -EIO;
+				}
 			}
 			break ;
 		case CHANNEL_TYPE_ISDB_T:
