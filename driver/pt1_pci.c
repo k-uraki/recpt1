@@ -349,7 +349,8 @@ static	int		pt1_thread(void *data)
 					channel->size += PACKET_SIZE ;
 					channel->packet_size = 0 ;
 				}
-#else
+#elif 0
+				// 来たデータ分細かく渡すパターン
 				// データコピー
 				for(int packet_data_idx=0;packet_data_idx<sizeof(micro.packet.data);++packet_data_idx) {
 					channel->packet_buf[channel->packet_size]   = micro.packet.data[2-packet_data_idx];
@@ -376,6 +377,37 @@ static	int		pt1_thread(void *data)
 						channel->size += PACKET_SIZE ;
 						channel->packet_size = 0 ;
 					}
+				}
+#else
+				// バッファオーバーフローだけ避けるパターン
+				// データコピー
+				for(int packet_data_idx=0;packet_data_idx<sizeof(micro.packet.data);++packet_data_idx) {
+					if(channel->packet_size < PACKET_SIZE) {
+						channel->packet_buf[channel->packet_size] = micro.packet.data[2-packet_data_idx];
+					}
+					channel->packet_size++;
+				}
+
+				// パケットが出来たらコピーする
+				if(channel->packet_size >= PACKET_SIZE){
+					if (channel->pointer + channel->size >= channel->maxsize) {
+						// リングバッファの境界を越えていてリングバッファの先頭に戻っている場合
+						// channel->pointer + channel->size - channel->maxsize でリングバッファ先頭からのアドレスになる
+						memcpy(&channel->buf[channel->pointer + channel->size - channel->maxsize], channel->packet_buf, PACKET_SIZE);
+					} else if (channel->pointer + channel->size + PACKET_SIZE > channel->maxsize) {
+						// リングバッファの境界をまたぐように書き込まれる場合
+						// リングバッファの境界まで書き込み
+						__u32 tmp_size = channel->maxsize - (channel->pointer + channel->size);
+						memcpy(&channel->buf[channel->pointer + channel->size], channel->packet_buf, tmp_size);
+						// 先頭に戻って書き込み
+						memcpy(channel->buf, &channel->packet_buf[tmp_size], PACKET_SIZE - tmp_size);
+					} else {
+						// リングバッファ内で収まる場合
+						// 通常の書き込み
+						memcpy(&channel->buf[channel->pointer + channel->size], channel->packet_buf, PACKET_SIZE);
+					}
+					channel->size += PACKET_SIZE ;
+					channel->packet_size = 0 ;
 				}
 #endif
 				mutex_unlock(&channel->lock);
