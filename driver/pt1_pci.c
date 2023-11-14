@@ -166,6 +166,7 @@ struct	_PT1_CHANNEL{
 	__u8			packet_buf[PACKET_SIZE] ;		// 溢れたチャネル
 	PT1_DEVICE		*ptr ;			// カード別情報
 	wait_queue_head_t	wait_q ;	// for poll on reading
+	char	devname[16];
 };
 
 // I2Cアドレス(video0, 1 = ISDB-S) (video2, 3 = ISDB-T)
@@ -350,7 +351,7 @@ static	int		pt1_thread(void *data)
 					channel->size += PACKET_SIZE ;
 					channel->packet_size = 0 ;
 				}
-#elif 0
+#elif 1
 				// 来たデータ分細かく渡すパターン
 				// データコピー
 				for(packet_lp=0;packet_lp<sizeof(micro.packet.data);++packet_lp) {
@@ -379,7 +380,7 @@ static	int		pt1_thread(void *data)
 						channel->packet_size = 0 ;
 					}
 				}
-#else
+#elif 0
 				// バッファオーバーフローだけ避けるパターン
 				// データコピー
 				for(packet_lp=0;packet_lp<sizeof(micro.packet.data);++packet_lp) {
@@ -862,6 +863,12 @@ static int __devinit pt1_pci_init_one (struct pci_dev *pdev,
 		}
 	}
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdate-time"
+	printk(KERN_INFO "PT1:build %s %s\n", __DATE__, __TIME__);
+#pragma GCC diagnostic pop
+
+	printk(KERN_INFO "PT1:device=%04x\n", ent->device);
 	switch(ent->device) {
 	case PCI_PT1_ID:
 		dev_conf->cardtype = PT1;
@@ -1003,6 +1010,10 @@ static int __devinit pt1_pci_init_one (struct pci_dev *pdev,
 		video_set_drvdata(dev_conf->vdev[lp], channel);
 		video_register_device(dev_conf->vdev[lp], VFL_TYPE_GRABBER, -1);
 #endif
+		snprintf(channel->devname, sizeof(channel->devname),
+			"pt1video%u", MINOR(dev_conf->dev) + lp +
+			dev_conf->card_number * MAX_CHANNEL);
+		printk(KERN_INFO "PT1:chardev name=%s\n", channel->devname);
 	}
 
 	if(pt1_dma_init(pdev, dev_conf) < 0){
