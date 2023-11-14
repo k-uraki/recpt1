@@ -434,7 +434,9 @@ void	i2c_write(void __iomem *regs, struct mutex *lock, WBLOCK *wblock)
 	__u32	val ;
 
 	// ロックする
-	mutex_lock(lock);
+	if(lock) {
+		mutex_lock(lock);
+	}
 #if 0
 	printk(KERN_INFO "Addr=%x(%d)\n", wblock->addr, wblock->count);
 	for(lp = 0 ; lp  < wblock->count ; lp++){
@@ -453,7 +455,9 @@ void	i2c_write(void __iomem *regs, struct mutex *lock, WBLOCK *wblock)
 		}
 		schedule_timeout_interruptible(msecs_to_jiffies(1));
 	}
-	mutex_unlock(lock);
+	if(lock) {
+		mutex_unlock(lock);
+	}
 }
 
 __u32	i2c_read(void __iomem *regs, struct mutex *lock, WBLOCK *wblock, int size)
@@ -463,7 +467,9 @@ __u32	i2c_read(void __iomem *regs, struct mutex *lock, WBLOCK *wblock, int size)
 	__u32	val ;
 
 	// ロックする
-	mutex_lock(lock);
+	if(lock) {
+		mutex_lock(lock);
+	}
 #if 0
 	printk(KERN_INFO "Addr=%x:%d:%d\n", wblock->addr, wblock->count, size);
 	for(lp = 0 ; lp  < wblock->count ; lp++){
@@ -484,6 +490,8 @@ __u32	i2c_read(void __iomem *regs, struct mutex *lock, WBLOCK *wblock, int size)
 	}
 
 	val = readl(regs + I2C_RESULT_ADDR);
-	mutex_unlock(lock);
+	if(lock) {
+		mutex_unlock(lock);
+	}
 	return val ;
 }

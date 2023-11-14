@@ -111,13 +111,13 @@ typedef	struct	_ISDB_T_TMCC {
 /***************************************************************************/
 extern	void	settuner_reset(void __iomem *, int, __u32, __u32);
 extern	int		tuner_init(void __iomem *, int, struct mutex *, int);
-extern	void	set_sleepmode(void __iomem *, struct mutex *, int, int, int);
+extern	void	set_sleepmode(void __iomem *, struct mutex *, int, int, int, const char*);
 
-extern	int		bs_tune(void __iomem *, struct mutex *, int, int, ISDB_S_TMCC *);
-extern  int     ts_lock(void __iomem *, struct mutex *, int, __u16);
+extern	int		bs_tune(void __iomem *, struct mutex *, int, int, ISDB_S_TMCC *, const char*);
+extern  int     ts_lock(void __iomem *, struct mutex *, int, __u16, const char*);
 
 extern	int		isdb_t_tune(void __iomem *, struct mutex *, int, int, ISDB_T_TMCC *);
-extern	int		isdb_t_frequency(void __iomem *, struct mutex *, int, int, int);
+extern	int		isdb_t_frequency(void __iomem *, struct mutex *, int, int, int, const char*);
 extern	int		isdb_s_read_signal_strength(void __iomem *, struct mutex *, int);
 extern	int		isdb_t_read_signal_strength(void __iomem *, struct mutex *, int);
 

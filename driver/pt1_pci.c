@@ -465,9 +465,11 @@ static int pt1_open(struct inode *inode, struct file *file)
 					}
 
 					/* wake tuner up */
+					printk(KERN_INFO "PT1:%s:pt1_open", channel->devname);
 					set_sleepmode(channel->ptr->regs, &channel->lock,
 								  channel->address, channel->type,
-								  TYPE_WAKEUP);
+								  TYPE_WAKEUP,
+								  channel->devname);
 					schedule_timeout_interruptible(msecs_to_jiffies(100));
 
 					channel->drop  = 0 ;
@@ -509,8 +511,9 @@ static int pt1_release(struct inode *inode, struct file *file)
 	}
 
 	/* send tuner to sleep */
+	printk(KERN_INFO "PT1:%s:pt1_release", channel->devname);
 	set_sleepmode(channel->ptr->regs, &channel->lock,
-				  channel->address, channel->type, TYPE_SLEEP);
+				  channel->address, channel->type, TYPE_SLEEP, channel->devname);
 	schedule_timeout_interruptible(msecs_to_jiffies(100));
 
 	mutex_unlock(&channel->ptr->lock);
@@ -571,11 +574,16 @@ static	int		SetFreq(PT1_CHANNEL *channel, FREQUENCY *freq)
 		case CHANNEL_TYPE_ISDB_S:
 			{
 				ISDB_S_TMCC		tmcc ;
+
+				mutex_lock(&channel->ptr->lock);
+
 				if(bs_tune(channel->ptr->regs,
-						&channel->ptr->lock,
+						NULL,
 						channel->address,
 						freq->frequencyno,
-						&tmcc) < 0){
+						&tmcc,
+						channel->devname) < 0){
+					mutex_unlock(&channel->ptr->lock);
 					return -EIO ;
 				}
 
@@ -598,19 +606,28 @@ static	int		SetFreq(PT1_CHANNEL *channel, FREQUENCY *freq)
 				}
 #endif
 				ts_lock(channel->ptr->regs,
-						&channel->ptr->lock,
+						NULL,
 						channel->address,
-						tmcc.ts_id[freq->slot].ts_id);
+						tmcc.ts_id[freq->slot].ts_id,
+						channel->devname);
+
+				mutex_unlock(&channel->ptr->lock);
 			}
 			break ;
 		case CHANNEL_TYPE_ISDB_T:
 			{
+				//mutex_lock(&channel->ptr->lock);
+
 				if(isdb_t_frequency(channel->ptr->regs,
 						&channel->ptr->lock,
 						channel->address,
-						freq->frequencyno, freq->slot) < 0){
+						freq->frequencyno, freq->slot,
+						channel->devname) < 0){
+					//mutex_unlock(&channel->ptr->lock);
 					return -EINVAL ;
 				}
+
+				//mutex_unlock(&channel->ptr->lock);
 			}
 	}
 	return 0 ;
@@ -676,14 +693,14 @@ static long pt1_do_ioctl(struct file  *file, unsigned int cmd, unsigned long arg
 				lnb_usr = (int)arg0;
 				lnb_eff = lnb_usr ? lnb_usr : lnb;
 				settuner_reset(channel->ptr->regs, channel->ptr->cardtype, lnb_eff, TUNER_POWER_ON_RESET_DISABLE);
-				printk(KERN_INFO "PT1:LNB on %s\n", voltage[lnb_eff]);
+				printk(KERN_INFO "PT1:%s:LNB on %s\n", channel->devname, voltage[lnb_eff]);
 			}
 			return 0 ;
 		case LNB_DISABLE:
 			count = count_used_bs_tuners(channel->ptr);
 			if(count <= 1) {
 				settuner_reset(channel->ptr->regs, channel->ptr->cardtype, LNB_OFF, TUNER_POWER_ON_RESET_DISABLE);
-				printk(KERN_INFO "PT1:LNB off\n");
+				printk(KERN_INFO "PT1:%s:LNB off\n", channel->devname);
 			}
 			return 0 ;
 	}
@@ -917,8 +934,10 @@ static int __devinit pt1_pci_init_one (struct pci_dev *pdev,
 	}
 	// 初期化完了
 	for(lp = 0 ; lp < MAX_CHANNEL ; lp++){
+		char tag[16];
+		snprintf(tag, sizeof(tag), "ch%d", lp);
 		set_sleepmode(dev_conf->regs, &dev_conf->lock,
-						i2c_address[lp], channeltype[lp], TYPE_SLEEP);
+						i2c_address[lp], channeltype[lp], TYPE_SLEEP, tag);
 
 		schedule_timeout_interruptible(msecs_to_jiffies(100));
 	}

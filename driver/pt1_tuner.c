@@ -102,9 +102,6 @@ static	int		init_isdb_s(void __iomem *regs, int cardtype, struct mutex *lock, __
 	int		lp ;
 	__u32	val ;
 
-	// ISDB-S/T初期化
-	memcpy(&wk, &com_initdata, sizeof(WBLOCK));
-
 	// 初期化１(なぜかREADなので)
 	memcpy(&wk, &isdb_s_init1, sizeof(WBLOCK));
 	wk.addr = addr;
@@ -188,14 +185,14 @@ int		tuner_init(void __iomem *regs, int cardtype, struct mutex *lock, int tuner_
 
 	return 0 ;
 }
-void	set_sleepmode(void __iomem *regs, struct mutex *lock, int address, int tuner_type, int type)
+void	set_sleepmode(void __iomem *regs, struct mutex *lock, int address, int tuner_type, int type, const char* tag)
 {
 	WBLOCK	wk;
 
 	if(type == TYPE_WAKEUP){
 		switch(tuner_type){
 		case CHANNEL_TYPE_ISDB_S:
-			printk(KERN_INFO "PT1:ISDB-S Wakeup\n");
+			printk(KERN_INFO "PT1:%s:ISDB-S Wakeup\n", tag);
 			memcpy(&wk, &isdb_s_wake, sizeof(WBLOCK));
 			wk.addr = address;
 			i2c_write(regs, lock, &wk);
@@ -205,7 +202,7 @@ void	set_sleepmode(void __iomem *regs, struct mutex *lock, int address, int tune
 			i2c_write(regs, lock, &wk);
 			break ;
 		case CHANNEL_TYPE_ISDB_T:
-			printk(KERN_INFO "PT1:ISDB-T Wakeup\n");
+			printk(KERN_INFO "PT1:%s:ISDB-T Wakeup\n", tag);
 			memcpy(&wk, &isdb_t_wake, sizeof(WBLOCK));
 			wk.addr = address;
 			i2c_write(regs, lock, &wk);
@@ -219,13 +216,13 @@ void	set_sleepmode(void __iomem *regs, struct mutex *lock, int address, int tune
 	if(type == TYPE_SLEEP){
 		switch(tuner_type){
 		case CHANNEL_TYPE_ISDB_S:
-			printk(KERN_INFO "PT1:ISDB-S Sleep\n");
+			printk(KERN_INFO "PT1:%s:ISDB-S Sleep\n", tag);
 			memcpy(&wk, &isdb_s_sleep, sizeof(WBLOCK));
 			wk.addr = address;
 			i2c_write(regs, lock, &wk);
 			break ;
 		case CHANNEL_TYPE_ISDB_T:
-			printk(KERN_INFO "PT1:ISDB-T Sleep\n");
+			printk(KERN_INFO "PT1:%s:ISDB-T Sleep\n", tag);
 			memcpy(&wk, &isdb_t_sleep, sizeof(WBLOCK));
 			wk.addr = address;
 			i2c_write(regs, lock, &wk);
@@ -234,7 +231,7 @@ void	set_sleepmode(void __iomem *regs, struct mutex *lock, int address, int tune
 	}
 }
 
-int		bs_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel)
+int		bs_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel, const char* tag)
 {
 	int		lp ;
 	int		tmcclock = FALSE ;
@@ -245,6 +242,7 @@ int		bs_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel)
 		return -EIO ;
 	}
 	// ISDB-S PLLロック
+	printk(KERN_INFO "PT1:%s:PLL LOCK\n", tag);
 	for(lp = 0 ; lp < MAX_BS_CHANNEL_PLL_COMMAND ; lp++){
 		memcpy(&wk, bs_pll[channel].wblock[lp], sizeof(WBLOCK));
 		wk.addr = addr ;
@@ -253,6 +251,7 @@ int		bs_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel)
 
 	// PLLロック確認
 	// チェック用
+	printk(KERN_INFO "PT1:%s:PLL LOCK CHECK\n", tag);
 	for(lp = 0 ; lp < 200 ; lp++){
 		memcpy(&wk, &bs_pll_lock, sizeof(WBLOCK));
 		wk.addr = addr;
@@ -264,16 +263,18 @@ int		bs_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel)
 	}
 
 	if(tmcclock == FALSE){
-		printk(KERN_INFO "PLL LOCK ERROR\n");
+		printk(KERN_INFO "PT1:%s:PLL LOCK ERROR\n", tag);
 		return -EIO;
 	}
 
+	printk(KERN_INFO "PT1:%s:TMCC GET1\n", tag);
 	memcpy(&wk, &bs_tmcc_get_1, sizeof(WBLOCK));
 	wk.addr = addr;
 	i2c_write(regs, lock, &wk);
 
 	tmcclock = FALSE ;
 
+	printk(KERN_INFO "PT1:%s:TMCC GET2\n", tag);
 	for(lp = 0 ; lp < 200 ; lp++){
 		memcpy(&wk, &bs_tmcc_get_2, sizeof(WBLOCK));
 		wk.addr = addr;
@@ -286,13 +287,13 @@ int		bs_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel)
 	}
 
 	if(tmcclock == FALSE){
-		printk(KERN_INFO "TMCC LOCK ERROR\n");
+		printk(KERN_INFO "PT1:%s:TMCC LOCK ERROR\n", tag);
 		return -EIO;
 	}
 
 	return 0 ;
 }
-int		ts_lock(void __iomem *regs, struct mutex *lock, int addr, __u16 ts_id)
+int		ts_lock(void __iomem *regs, struct mutex *lock, int addr, __u16 ts_id, const char* tag)
 {
 
 	int		lp ;
@@ -309,8 +310,10 @@ int		ts_lock(void __iomem *regs, struct mutex *lock, int addr, __u16 ts_id)
 	// TS-ID設定
 	wk.value[1]  = uts_id.ts[1];
 	wk.value[2]  = uts_id.ts[0];
+	printk(KERN_INFO "PT1:%s:SET TS LOCK\n", tag);
 	i2c_write(regs, lock, &wk);
 
+	printk(KERN_INFO "PT1:%s:GET TS LOCK\n", tag);
 	for(lp = 0 ; lp < 100 ; lp++){
 		memcpy(&wk, &bs_get_ts_lock, sizeof(WBLOCK));
 		wk.addr = addr;
@@ -319,10 +322,10 @@ int		ts_lock(void __iomem *regs, struct mutex *lock, int addr, __u16 ts_id)
 			return 0 ;
 		}
 	}
-	printk(KERN_INFO "PT1:ERROR TS-LOCK(%x)\n", ts_id);
+	printk(KERN_INFO "PT1:%s:ERROR TS-LOCK(%x)\n", tag, ts_id);
 	return -EIO ;
 }
-int		bs_tune(void __iomem *regs, struct mutex *lock, int addr, int channel, ISDB_S_TMCC *tmcc)
+int		bs_tune(void __iomem *regs, struct mutex *lock, int addr, int channel, ISDB_S_TMCC *tmcc, const char* tag)
 {
 
 	int		lp ;
@@ -343,13 +346,14 @@ int		bs_tune(void __iomem *regs, struct mutex *lock, int addr, int channel, ISDB
 		printk(KERN_INFO "Invalid Channel(%d)\n", channel);
 		return -EIO ;
 	}
-	val = bs_frequency(regs, lock, addr, channel);
+	val = bs_frequency(regs, lock, addr, channel, tag);
 	if(val == -EIO){
 		return val ;
 	}
 
 	tsid = &tmcc->ts_id[0] ;
 	// 該当周波数のTS-IDを取得
+	printk(KERN_INFO "PT1:%s:GET TSID\n", tag);
 	for(lp = 0 ; lp < (MAX_BS_TS_ID / 2) ; lp++){
 		for(lp2 = 0 ; lp2 < 100 ; lp2++){
 			memcpy(&wk, bs_get_ts_id[lp], sizeof(WBLOCK));
@@ -368,6 +372,7 @@ int		bs_tune(void __iomem *regs, struct mutex *lock, int addr, int channel, ISDB
 
 	memcpy(&wk, &bs_get_agc, sizeof(WBLOCK));
 	wk.addr = addr;
+	printk(KERN_INFO "PT1:%s:GET AGC\n", tag);
 	tmcc->agc = i2c_read(regs, lock, &wk, 1);
 
 	// TS-ID別の情報を取得
@@ -377,7 +382,7 @@ int		bs_tune(void __iomem *regs, struct mutex *lock, int addr, int channel, ISDB
 		if(tsid->ts_id == 0xFFFF){
 			continue ;
 		}
-		ts_lock(regs, lock, addr, tsid->ts_id);
+		ts_lock(regs, lock, addr, tsid->ts_id, tag);
 
 		//スロット取得
 		memcpy(&wk, &bs_get_slot, sizeof(WBLOCK));
@@ -448,7 +453,7 @@ __u32	getfrequency(__u32 channel, int addfreq)
 	return frequencyOffset + 400;
 
 }
-int		isdb_t_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel, int addfreq)
+int		isdb_t_frequency(void __iomem *regs, struct mutex *lock, int addr, int channel, int addfreq, const char* tag)
 {
 
 	int		lp ;
@@ -481,36 +486,45 @@ int		isdb_t_frequency(void __iomem *regs, struct mutex *lock, int addr, int chan
 	wk.value[wk.count] = freq[1].charfreq[0];
 	wk.count += 1 ;
 
-	i2c_write(regs, lock, &wk);
+	printk(KERN_INFO "PT1:%s:ISDB-T LOCK\n", tag);
+	mutex_lock(lock);
+	i2c_write(regs, NULL, &wk);
 
 	for(lp = 0 ; lp < 100 ; lp++){
 		memcpy(&wk, &isdb_t_pll_lock, sizeof(WBLOCK));
 		wk.addr = addr;
-		val = i2c_read(regs, lock, &wk, 1);
+		val = i2c_read(regs, NULL, &wk, 1);
 		if(((val & 0xFF) != 0XFF) && ((val & 0X50) == 0x50)){
 			tmcclock = TRUE ;
 			break ;
 		}
 	}
+	mutex_unlock(lock);
+	printk(KERN_INFO "PT1:%s:ISDB-T END LOCK %d %d\n", tag, tmcclock, lp);
 	if(tmcclock != TRUE){
 		printk(KERN_INFO "PT1:ISDB-T LOCK NG(%08x)\n", val);
 		return -EIO ;
 	}
 
+	printk(KERN_INFO "PT1:%s:ISDB-T CHECK TUNE\n", tag);
 	memcpy(&wk, &isdb_t_check_tune, sizeof(WBLOCK));
 	wk.addr = addr ;
-	i2c_write(regs, lock, &wk);
+	mutex_lock(lock);
+	i2c_write(regs, NULL, &wk);
 
+	printk(KERN_INFO "PT1:%s:ISDB-T TUNE READ\n", tag);
 	tmcclock = FALSE ;
 	for(lp = 0 ; lp < 1000 ; lp++){
 		memcpy(&wk, &isdb_t_tune_read, sizeof(WBLOCK));
 		wk.addr = addr;
-		val = i2c_read(regs, lock, &wk, 1);
+		val = i2c_read(regs, NULL, &wk, 1);
 		if(((val & 0xFF) != 0XFF) && ((val & 0X8) != 8)){
 			tmcclock = TRUE ;
 			break ;
 		}
 	}
+	mutex_unlock(lock);
+	printk(KERN_INFO "PT1:%s:ISDB-T END TUNE READ %d %d\n", tag, tmcclock, lp);
 	if(tmcclock != TRUE){
 		return -EIO ;
 	}
